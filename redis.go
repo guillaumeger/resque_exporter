@@ -6,13 +6,13 @@ import (
 	"github.com/go-redis/redis"
 )
 
-func newRedisClient(addr, port, pass string, db int) *redis.Client {
-	c := redis.NewClient(&redis.Options{
-		Addr:     addr + ":" + port,
-		Password: pass,
-		DB:       db,
+func newRedisClient(c config) *redis.Client {
+	rc := redis.NewClient(&redis.Options{
+		Addr:     c.redisHost + ":" + c.redisPort,
+		Password: c.redisPassword,
+		DB:       c.redisDB,
 	})
-	return c
+	return rc
 }
 
 func keyExist(c *redis.Client, ns, k string) bool {

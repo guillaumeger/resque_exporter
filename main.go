@@ -9,16 +9,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-const (
-	redisAddress   = "localhost"
-	redisPort      = "6379"
-	redisDB        = 0
-	redisPassword  = ""
-	redisNamespace = "resque"
-)
-
 func main() {
-	red := newRedisClient(redisAddress, redisPort, redisPassword, redisDB)
+	config := getConfig()
+
+	red := newRedisClient(config)
 
 	// workers
 	var (
@@ -26,18 +20,18 @@ func main() {
 		workingWorkers float64
 	)
 
-	if !keyExist(red, redisNamespace, "workers") {
+	if !keyExist(red, config.redisNamespace, "workers") {
 		fmt.Println("key does not exist")
 		workers = 0.0
 		workingWorkers = 0
 	} else {
-		workersList := getSetMembers(red, redisNamespace, "workers")
+		workersList := getSetMembers(red, config.redisNamespace, "workers")
 		workers = float64(len(workersList))
 		fmt.Println("workers: ", workers)
 
 		workingWorkers = 0.0
 		for _, w := range workersList {
-			if keyExist(red, redisNamespace, "workers:"+w) {
+			if keyExist(red, config.redisNamespace, "workers:"+w) {
 				workingWorkers++
 			}
 		}
@@ -54,10 +48,10 @@ func main() {
 		Help: "Number of workers currently working",
 	}).Set(workingWorkers)
 
-	if keyExist(red, redisNamespace, "queues") {
-		queuesList := getSetMembers(red, redisNamespace, "queues")
+	if keyExist(red, config.redisNamespace, "queues") {
+		queuesList := getSetMembers(red, config.redisNamespace, "queues")
 		for i, q := range queuesList {
-			qJobs := getListLength(red, redisNamespace, "queues:"+string(i+1))
+			qJobs := getListLength(red, config.redisNamespace, "queues:"+string(i+1))
 			promauto.NewGauge(prometheus.GaugeOpts{
 				Name: "resque_queue_jobs",
 				Help: "Number of jobs in queue",
@@ -72,21 +66,21 @@ func main() {
 		Name: "resque_jobs_processed_total",
 		Help: "Total number of processed jobs",
 	}, func() float64 {
-		return getKeyFloat(red, redisNamespace, "stat:processed")
+		return getKeyFloat(red, config.redisNamespace, "stat:processed")
 	})
 
 	promauto.NewCounterFunc(prometheus.CounterOpts{
 		Name: "resque_jobs_failed_total",
 		Help: "Total number of failed jobs",
 	}, func() float64 {
-		return getKeyFloat(red, redisNamespace, "stat:failed")
+		return getKeyFloat(red, config.redisNamespace, "stat:failed")
 	})
 
 	promauto.NewGaugeFunc(prometheus.GaugeOpts{
 		Name: "resque_failed_queue",
 		Help: "Number of jobs in the failed queue",
 	}, func() float64 {
-		return getListLength(red, redisNamespace, "failed")
+		return getListLength(red, config.redisNamespace, "failed")
 	})
 
 	http.Handle("/metrics", promhttp.Handler())
