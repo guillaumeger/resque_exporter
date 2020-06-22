@@ -20,7 +20,10 @@ func getMetrics(red *redis.Client, conf config) {
 		workingWorkers = 0
 	} else {
 		workersList := getSetMembers(red, conf.redisNamespace, "workers")
-		workers = float64(len(workersList))
+		promauto.NewGaugeFunc(prometheus.GaugeOpts{
+			Name: "resque_workers",
+			Help: "Number of workers",
+		}, func() float64 { return float64(len(workersList)) })
 		fmt.Println("workers: ", workers)
 
 		workingWorkers = 0.0
@@ -32,27 +35,22 @@ func getMetrics(red *redis.Client, conf config) {
 		fmt.Println("working workers: ", workingWorkers)
 	}
 
-	promauto.NewGauge(prometheus.GaugeOpts{
-		Name: "resque_workers",
-		Help: "Number of workers",
-	}).Set(workers)
-
-	prometheus.NewGauge(prometheus.GaugeOpts{
+	prometheus.NewGaugeFunc(prometheus.GaugeOpts{
 		Name: "resque_workers_working",
 		Help: "Number of workers currently working",
-	}).Set(workingWorkers)
+	}, func() float64 { return workingWorkers })
 
 	if keyExist(red, conf.redisNamespace, "queues") {
 		queuesList := getSetMembers(red, conf.redisNamespace, "queues")
 		for i, q := range queuesList {
-			qJobs := getListLength(red, conf.redisNamespace, "queues:"+string(i+1))
-			promauto.NewGauge(prometheus.GaugeOpts{
+			promauto.NewGaugeFunc(prometheus.GaugeOpts{
 				Name: "resque_queue_jobs",
 				Help: "Number of jobs in queue",
 				ConstLabels: prometheus.Labels{
 					"queue": q,
 				},
-			}).Set(qJobs)
+			}, func() float64 { return getListLength(red, conf.redisNamespace, "queues:"+string(i+1)) },
+			)
 		}
 	}
 
