@@ -9,7 +9,11 @@ import (
 func main() {
 	config := getConfig()
 	red := newRedisClient(config)
-	getMetrics(red, config)
+	go getWorkersMetrics(red, config)
+	go getQueuedJobsMetrics(red, config)
+	go getProcessedJobsMetrics(red, config)
+	go getFailedJobsMetrics(red, config)
+	go getFailedQueueMetrics(red, config)
 	http.Handle("/metrics", promhttp.Handler())
 	http.ListenAndServe(":9112", nil)
 }
