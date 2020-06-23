@@ -1,9 +1,8 @@
 package main
 
 import (
-	"fmt"
-
 	"github.com/go-redis/redis"
+	log "github.com/sirupsen/logrus"
 )
 
 func newRedisClient(c config) *redis.Client {
@@ -18,7 +17,7 @@ func newRedisClient(c config) *redis.Client {
 func keyExist(c *redis.Client, ns, k string) bool {
 	e, err := c.Exists(ns + ":" + k).Result()
 	if err != nil {
-		fmt.Printf("An error occured: %v\n", err)
+		log.Errorf("Error contacting redis: %s", err)
 		return false
 	}
 	if e == 0 {
@@ -30,7 +29,7 @@ func keyExist(c *redis.Client, ns, k string) bool {
 func getSetMembers(c *redis.Client, ns, k string) []string {
 	m, err := c.SMembers(ns + ":" + k).Result()
 	if err != nil {
-		fmt.Printf("An error occured: %v\n", err)
+		log.Errorf("Error contacting redis: %s", err)
 		return nil
 	}
 	return m
@@ -39,7 +38,7 @@ func getSetMembers(c *redis.Client, ns, k string) []string {
 func getListLength(c *redis.Client, ns, k string) float64 {
 	l, err := c.LLen(ns + ":" + k).Result()
 	if err != nil {
-		fmt.Printf("An error occured: %v\n", err)
+		log.Errorf("Error contacting redis: %s", err)
 		return 0.0
 	}
 	return float64(l)
@@ -48,7 +47,7 @@ func getListLength(c *redis.Client, ns, k string) float64 {
 func getKeyFloat(c *redis.Client, ns, k string) float64 {
 	v, err := c.Get(ns + ":" + k).Float64()
 	if err != nil {
-		fmt.Printf("An error occured: %v\n", err)
+		log.Errorf("Error contacting redis: %s", err)
 		return 0.0
 	}
 	return v

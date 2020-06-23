@@ -1,0 +1,18 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: resque-exporter
+spec:
+  replicas: 1
+  template:
+    metadata:
+      name: resque-exporter
+      labels:
+        app: resque-exporter
+    spec:
+      containers:
+      - name: resque-exporter
+        image: gg1113/resque_exporter:0.1.2
+        env:
+          - name: RESQUE_EXPORTERREDIS_HOST
+            value: rtb-trader-redis-master
