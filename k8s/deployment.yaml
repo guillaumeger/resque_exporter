@@ -12,7 +12,9 @@ spec:
     spec:
       containers:
       - name: resque-exporter
-        image: gg1113/resque_exporter:0.1.2
+        image: gg1113/resque_exporter:0.2.1
         env:
-          - name: RESQUE_EXPORTERREDIS_HOST
+          - name: RESQUE_EXPORTER_REDIS_HOST
             value: rtb-trader-redis-master
+          - name: RESQUE_EXPORTER_REDIS_DB
+            value: "1"
