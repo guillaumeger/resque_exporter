@@ -35,12 +35,12 @@ func getDBConfig(env string, def int) int {
 }
 
 func getConfig() config {
-	prefix := "RESQUE_EXPORTER"
+	prefix := "RESQUE_EXPORTER_"
 	configSet := config{
-		redisHost:      getConfigValue(prefix+"REDIS_HOST_", "localhost"),
-		redisPort:      getConfigValue(prefix+"REDIS_PORT_", "6379"),
-		redisPassword:  getConfigValue(prefix+"REDIS_PASSWORD_", ""),
-		redisNamespace: getConfigValue(prefix+"REDIS_NAMESPACE_", "resque"),
+		redisHost:      getConfigValue(prefix+"REDIS_HOST", "localhost"),
+		redisPort:      getConfigValue(prefix+"REDIS_PORT", "6379"),
+		redisPassword:  getConfigValue(prefix+"REDIS_PASSWORD", ""),
+		redisNamespace: getConfigValue(prefix+"REDIS_NAMESPACE", "resque"),
 	}
 
 	configSet.redisDB = getDBConfig(prefix+"REDIS_DB", 0)
