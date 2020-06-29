@@ -32,5 +32,5 @@ func main() {
 	go getFailedQueueMetrics(red, config)
 	log.Debugf("Serving /metrics on port 9112")
 	http.Handle("/metrics", promhttp.Handler())
-	http.ListenAndServe(":9112", nil)
+	http.ListenAndServe(":9447", nil)
 }
