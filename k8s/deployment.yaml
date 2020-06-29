@@ -9,12 +9,32 @@ spec:
       name: resque-exporter
       labels:
         app: resque-exporter
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9447"
     spec:
       containers:
       - name: resque-exporter
-        image: gg1113/resque_exporter:0.2.1
+        image: gg1113/resque_exporter:0.2.2
         env:
           - name: RESQUE_EXPORTER_REDIS_HOST
             value: rtb-trader-redis-master
           - name: RESQUE_EXPORTER_REDIS_DB
             value: "1"
+        resources:
+          limits:
+            memory: 50Mi
+            cpu: 0.01m
+          requests:
+            memory: 50Mi
+            cpu: 0.01m
+        livenessProbe:
+          httpGet:
+            path: /metrics
+            port: 9447
+          initialDelaySeconds: 1
+        readinessProbe:
+          httpGet:
+            path: /metrics
+            port: 9447
+          initialDelaySeconds: 1
