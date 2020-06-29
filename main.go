@@ -8,7 +8,7 @@ import (
 )
 
 func init() {
-	logLevel := getConfigValue("RESQUE_EXPORTER_LOG_LEVEL", "debug")
+	logLevel := getConfigValue("RESQUE_EXPORTER_LOG_LEVEL", "error")
 	levels := make(map[string]log.Level)
 	levels["debug"] = log.DebugLevel
 	levels["info"] = log.InfoLevel
