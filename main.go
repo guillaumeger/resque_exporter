@@ -3,6 +3,7 @@ package main
 import (
 	"net/http"
 
+	runtime "github.com/banzaicloud/logrus-runtime-formatter"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 )
@@ -16,6 +17,11 @@ func init() {
 	levels["error"] = log.ErrorLevel
 	levels["fatal"] = log.FatalLevel
 	log.SetLevel(levels[logLevel])
+	formatter := runtime.Formatter{ChildFormatter: &log.TextFormatter{
+		FullTimestamp: true,
+	}}
+	formatter.Line = true
+	log.SetFormatter(&formatter)
 }
 
 func main() {
