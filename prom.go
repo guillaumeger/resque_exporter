@@ -68,9 +68,9 @@ func getQueuedJobsMetrics(red *redis.Client, conf config) {
 		log.Debugf("Starting getQueuedJobsMetrics loop")
 		if keyExist(red, conf.redisNamespace, "queues") {
 			queuesList := getSetMembers(red, conf.redisNamespace, "queues")
-			for i, q := range queuesList {
+			for _, q := range queuesList {
 				log.Debugf("Setting metric value for resque_queue_job")
-				queuedJobsMetric.WithLabelValues(q).Set(getListLength(red, conf.redisNamespace, "queues:"+string(i+1)))
+				queuedJobsMetric.WithLabelValues(q).Set(getListLength(red, conf.redisNamespace, "queue:"+q))
 			}
 		}
 		log.Debugf("Sleeping 5 seconds")
