@@ -1,9 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 
-	runtime "github.com/banzaicloud/logrus-runtime-formatter"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 )
@@ -17,14 +17,15 @@ func init() {
 	levels["error"] = log.ErrorLevel
 	levels["fatal"] = log.FatalLevel
 	log.SetLevel(levels[logLevel])
-	formatter := runtime.Formatter{ChildFormatter: &log.TextFormatter{
+	log.SetFormatter(&log.TextFormatter{
+		DisableColors: true,
 		FullTimestamp: true,
-	}}
-	formatter.Line = true
-	log.SetFormatter(&formatter)
+	})
 }
 
 func main() {
+	fmt.Println("Starting")
+	log.Errorf("Test error")
 	log.Infof("Starting...")
 	log.Debugf("Getting configuration")
 	config := getConfig()
@@ -38,5 +39,8 @@ func main() {
 	go getFailedQueueMetrics(red, config)
 	log.Debugf("Serving /metrics on port 9112")
 	http.Handle("/metrics", promhttp.Handler())
-	http.ListenAndServe(":9447", nil)
+	err := http.ListenAndServe(":9447", nil)
+	if err != nil {
+		log.Errorf("Cannot serve on port 9447: %s", err)
+	}
 }

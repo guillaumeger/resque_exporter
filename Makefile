@@ -7,7 +7,7 @@ deps:
 
 build-linux: deps
 	mkdir bin/
-	GOOS=linux GOARCH=amd64 go build -o bin/resque_exporter .
+	GO111MODULE=on CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o bin/resque_exporter .
 
 docker: build-linux 
 	docker build -t gg1113/resque_exporter:$(tag) .
