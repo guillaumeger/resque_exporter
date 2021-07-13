@@ -28,10 +28,10 @@ func keyExist(c *redis.Client, ns, k string) bool {
 		return false
 	}
 	if e == 0 {
-		log.Infof("Key %s does not exist.", k)
+		log.Debugf("Key %s does not exist.", k)
 		return false
 	}
-	log.Infof("Key %s exists.", k)
+	log.Debugf("Key %s exists.", k)
 	return true
 }
 
