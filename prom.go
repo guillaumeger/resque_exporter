@@ -143,3 +143,54 @@ func getFailedQueueMetrics(red *redis.Client, conf config) {
 		time.Sleep(time.Second * 5)
 	}
 }
+
+func getJobStatsMetrics(red *redis.Client, conf config) {
+	jobFailedMetric := promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "resque_job_failed",
+		Help: "Failed jobs",
+	},
+		[]string{
+			"job",
+		})
+	log.Debugf("Created metric: resque_job_failed")
+	jobEnqueuedMetric := promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "resque_job_enqueued",
+		Help: "Enqueued jobs",
+	},
+		[]string{
+			"job",
+		})
+	log.Debugf("Created metric: resque_job_enqueued")
+	jobCompletedMetric := promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "resque_job_completed",
+		Help: "Completed jobs",
+	},
+		[]string{
+			"job",
+		})
+	log.Debugf("Created metric: resque_job_completed")
+	for {
+		log.Debugf("Starting getFailedQueueMetrics loop")
+		log.Debugf("Getting list of jobs")
+		jobList := getJobList(red, conf.redisNamespace)
+		for _, j := range jobList {
+			var failed float64
+			var completed float64
+			if keyExist(red, conf.redisNamespace, "stats:jobs:"+j+":failed") {
+				failed = getKeyFloat(red, conf.redisNamespace, "stats:jobs:"+j+":failed")
+			} else {
+				failed = 0
+			}
+			if keyExist(red, conf.redisNamespace, "stats:jobs:"+j+":performed") {
+				completed = getKeyFloat(red, conf.redisNamespace, "stats:jobs:"+j+":performed")
+			} else {
+				completed = 0
+			}
+			jobFailedMetric.WithLabelValues(j).Set(failed)
+			jobEnqueuedMetric.WithLabelValues(j).Set(getKeyFloat(red, conf.redisNamespace, "stats:jobs:"+j+":enqueued"))
+			jobCompletedMetric.WithLabelValues(j).Set(completed)
+		}
+		log.Debugf("Sleeping 15 seconds")
+		time.Sleep(time.Second * 15)
+	}
+}
