@@ -7,4 +7,5 @@ require (
 	github.com/onsi/ginkgo v1.13.0 // indirect
 	github.com/prometheus/client_golang v1.7.0
 	github.com/sirupsen/logrus v1.8.0
+	github.com/xtgo/set v1.0.0
 )

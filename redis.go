@@ -1,9 +1,16 @@
 package main
 
 import (
+	"context"
+	"sort"
+	"strings"
+
 	"github.com/go-redis/redis"
 	log "github.com/sirupsen/logrus"
+	"github.com/xtgo/set"
 )
+
+var ctx = context.Background()
 
 func newRedisClient(c config) *redis.Client {
 	rc := redis.NewClient(&redis.Options{
@@ -21,8 +28,10 @@ func keyExist(c *redis.Client, ns, k string) bool {
 		return false
 	}
 	if e == 0 {
+		log.Debugf("Key %s does not exist.", k)
 		return false
 	}
+	log.Debugf("Key %s exists.", k)
 	return true
 }
 
@@ -47,8 +56,33 @@ func getListLength(c *redis.Client, ns, k string) float64 {
 func getKeyFloat(c *redis.Client, ns, k string) float64 {
 	v, err := c.Get(ns + ":" + k).Float64()
 	if err != nil {
-		log.Errorf("Error contacting redis: %s", err)
+		log.Errorf("Error contacting redis: %s, or key %s does not exist.", err, k)
 		return 0.0
 	}
 	return v
+}
+
+func getKey(c *redis.Client, ns, k string) string {
+	v := c.Get(ns + ":" + k).String()
+	return v
+}
+
+func sanitizeJobName(j string) string {
+	s := strings.Split(strings.ReplaceAll(j, "::", "/"), ":")
+	return strings.ReplaceAll(s[3], "/", "::")
+}
+
+func getJobList(c *redis.Client, ns string) sort.StringSlice {
+	iter := c.Scan(0, "resque:stats:jobs*", 0).Iterator()
+	var jobs sort.StringSlice
+	for iter.Next() {
+		jobs = append(jobs, sanitizeJobName(iter.Val()))
+	}
+	if err := iter.Err(); err != nil {
+		log.Errorf("Error retrieving the list of jobs: %s", err)
+		return nil
+	}
+	sort.Sort(jobs)
+	u := set.Uniq(jobs)
+	return jobs[:u]
 }

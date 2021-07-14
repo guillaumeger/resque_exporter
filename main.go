@@ -9,7 +9,7 @@ import (
 )
 
 func init() {
-	logLevel := getConfigValue("RESQUE_EXPORTER_LOG_LEVEL", "error")
+	logLevel := getConfigValue("RESQUE_EXPORTER_LOG_LEVEL", "info")
 	levels := make(map[string]log.Level)
 	levels["debug"] = log.DebugLevel
 	levels["info"] = log.InfoLevel
@@ -25,7 +25,6 @@ func init() {
 
 func main() {
 	fmt.Println("Starting")
-	log.Errorf("Test error")
 	log.Infof("Starting...")
 	log.Debugf("Getting configuration")
 	config := getConfig()
@@ -37,7 +36,10 @@ func main() {
 	go getProcessedJobsMetrics(red, config)
 	go getFailedJobsMetrics(red, config)
 	go getFailedQueueMetrics(red, config)
-	log.Debugf("Serving /metrics on port 9112")
+	if config.resqueStatsMetrics {
+		go getJobStatsMetrics(red, config)
+	}
+	log.Debugf("Serving /metrics on port 9447")
 	http.Handle("/metrics", promhttp.Handler())
 	err := http.ListenAndServe(":9447", nil)
 	if err != nil {
