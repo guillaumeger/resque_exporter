@@ -1,196 +1,205 @@
 package main
 
 import (
-	"time"
-
 	"github.com/go-redis/redis"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	log "github.com/sirupsen/logrus"
 )
 
-func getWorkersMetrics(red *redis.Client, conf config) {
+type Exporter struct {
+	red  *redis.Client
+	conf config
+}
 
-	workersMetric := promauto.NewGauge(prometheus.GaugeOpts{
-		Name: "resque_workers",
-		Help: "Number of workers",
-	})
-	log.Debugf("Created metric: resque_workers")
-
-	workingWorkersMetric := prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "resque_workers_working",
-		Help: "Number of workers currently working",
-	})
-	log.Debugf("Created metric: resque_workers_working")
-	for {
-		log.Debugf("Starting getWorkersMetrics loop")
-		var (
-			workers        float64
-			workingWorkers float64
-		)
-
-		if !keyExist(red, conf.redisNamespace, "workers") {
-			log.Warnf("Key %v does not exist in redis, skipping...", conf.redisNamespace+":workers")
-			workers = 0.0
-			workingWorkers = 0.0
-		} else {
-			workersList := getSetMembers(red, conf.redisNamespace, "workers")
-			workers = float64(len(workersList))
-			log.Debugf("No of workers: %v", workers)
-
-			workingWorkers = 0.0
-			for _, w := range workersList {
-				if keyExist(red, conf.redisNamespace, "workers:"+w) {
-					workingWorkers++
-				}
-			}
-			log.Debugf("No of working workers: %v", workingWorkers)
-		}
-		log.Debugf("Setting metric value for resque_workers, value: %v", workers)
-		workersMetric.Set(workers)
-		log.Debugf("Setting metric value for resque_workers_working, value: %v", workingWorkers)
-		workingWorkersMetric.Set(workingWorkers)
-		log.Debugf("Sleeping 5 seconds")
-		time.Sleep(time.Second * 5)
+func NewExporter(red *redis.Client, conf config) *Exporter {
+	return &Exporter{
+		red:  red,
+		conf: conf,
 	}
 }
 
-func getQueuedJobsMetrics(red *redis.Client, conf config) {
-	queuedJobsMetric := promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "resque_queue_jobs",
-		Help: "Number of jobs in queue",
-	},
-		[]string{
-			"queue",
-		})
-	log.Debugf("Created metric: resque_queue_jobs")
-	for {
-		log.Debugf("Starting getQueuedJobsMetrics loop")
-		if keyExist(red, conf.redisNamespace, "queues") {
-			queuesList := getSetMembers(red, conf.redisNamespace, "queues")
-			for _, q := range queuesList {
-				log.Debugf("Setting metric value for resque_queue_job")
-				queuedJobsMetric.WithLabelValues(q).Set(getListLength(red, conf.redisNamespace, "queue:"+q))
+var workersMetric = prometheus.NewDesc(
+	prometheus.BuildFQName("resque", "", "workers"),
+	"Number of workers",
+	[]string{},
+	nil,
+)
+
+func getWorkersMetrics(red *redis.Client, conf config) float64 {
+	if !keyExist(red, conf.redisNamespace, "workers") {
+		log.Warnf("Key %v does not exist in redis, skipping...", conf.redisNamespace+":workers")
+		return 0.0
+	} else {
+		workersList := getSetMembers(red, conf.redisNamespace, "workers")
+		workers := float64(len(workersList))
+		log.Debugf("No of workers: %v", workers)
+		return workers
+	}
+}
+
+var workingWorkersMetric = prometheus.NewDesc(
+	prometheus.BuildFQName("resque", "", "workers_working"),
+	"Number of workers currently working",
+	[]string{},
+	nil,
+)
+
+func getWorkingWorkersMetric(red *redis.Client, conf config) float64 {
+	if !keyExist(red, conf.redisNamespace, "workers") {
+		log.Warnf("Key %v does not exist in redis, skipping...", conf.redisNamespace+":workers")
+		return 0.0
+	} else {
+		workingWorkers := 0.0
+		workersList := getSetMembers(red, conf.redisNamespace, "workers")
+		for _, w := range workersList {
+			if keyExist(red, conf.redisNamespace, "workers:"+w) {
+				workingWorkers++
 			}
 		}
-		log.Debugf("Sleeping 5 seconds")
-		time.Sleep(time.Second * 5)
+		log.Debugf("No of working workers: %v", workingWorkers)
+		return workingWorkers
 	}
 }
 
-func getProcessedJobsMetrics(red *redis.Client, conf config) {
-	processedJobsMetric := promauto.NewCounter(prometheus.CounterOpts{
-		Name: "resque_jobs_processed_total",
-		Help: "Total number of processed jobs",
-	})
-	log.Debugf("Created metric: resque_jobs_processed_total")
-
-	var origValue float64
-	for {
-		log.Debugf("Starting getProcessedJobsMetrics loop")
-		log.Debugf("Calculating the difference of processed jobs between loop iterations")
-		log.Debugf("Processed jobs original value: %v", origValue)
-		newValue := getKeyFloat(red, conf.redisNamespace, "stat:processed")
-		log.Debugf("Processed jobs new value: %v", newValue)
-		diff := newValue - origValue
-		log.Debugf("Processed jobs difference: %v", diff)
-
-		log.Debugf("Setting metric value for resque_jobs_processed_total, adding %v", diff)
-		processedJobsMetric.Add(diff)
-		origValue = newValue
-		log.Debugf("Sleeping 5 seconds")
-		time.Sleep(time.Second * 5)
-	}
-}
-
-func getFailedJobsMetrics(red *redis.Client, conf config) {
-	failedJobsMetric := promauto.NewCounter(prometheus.CounterOpts{
-		Name: "resque_jobs_failed_total",
-		Help: "Total number of failed jobs",
-	})
-	log.Debugf("Created metric: resque_jobs_failed_total")
-
-	var origValue float64
-	for {
-		log.Debugf("Starting getFailedJobsMetrics loop")
-		log.Debugf("Calculating the difference of failed processed jobs between loop iterations")
-		log.Debugf("Failed jobs original value: %v", origValue)
-		newValue := getKeyFloat(red, conf.redisNamespace, "stat:failed")
-		log.Debugf("Failed jobs failed value: %v", origValue)
-		diff := newValue - origValue
-		log.Debugf("Failed jobs difference: %v", origValue)
-
-		log.Debugf("Setting metric value for resque_jobs_failed_total, adding %v", diff)
-		failedJobsMetric.Add(diff)
-		origValue = newValue
-		log.Debugf("Sleeping 5 seconds")
-		time.Sleep(time.Second * 5)
-	}
-}
-
-func getFailedQueueMetrics(red *redis.Client, conf config) {
-	failedQueueMetric := promauto.NewGauge(prometheus.GaugeOpts{
-		Name: "resque_failed_queue",
-		Help: "Number of jobs in the failed queue",
-	})
-	log.Debugf("Created metric: resque_failed_queue")
-
-	for {
-		log.Debugf("Starting getFailedQueueMetrics loop")
-		log.Debugf("Setting metric value for resque_failed_queue")
-		failedQueueMetric.Set(getListLength(red, conf.redisNamespace, "failed"))
-		log.Debugf("Sleeping 5 seconds")
-		time.Sleep(time.Second * 5)
-	}
-}
-
-func getJobStatsMetrics(red *redis.Client, conf config) {
-	jobFailedMetric := promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "resque_job_failed",
-		Help: "Failed jobs",
+var queuedJobsMetric = prometheus.NewDesc(
+	prometheus.BuildFQName("resque", "", "queue_jobs"),
+	"Number of jobs in queue",
+	[]string{
+		"queue",
 	},
-		[]string{
-			"job",
-		})
-	log.Debugf("Created metric: resque_job_failed")
-	jobEnqueuedMetric := promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "resque_job_enqueued",
-		Help: "Enqueued jobs",
+	nil,
+)
+
+var processedJobsMetric = prometheus.NewDesc(
+	prometheus.BuildFQName("resque", "processed_jobs", "total"),
+	"Total number of processed jobs",
+	[]string{},
+	nil,
+)
+
+var failedJobsMetric = prometheus.NewDesc(
+	prometheus.BuildFQName("resque", "failed_jobs", "total"),
+	"Total number of failed jobs",
+	[]string{},
+	nil,
+)
+
+var failedQueueMetric = prometheus.NewDesc(
+	prometheus.BuildFQName("resque", "", "failed_queue"),
+	"Number of jobs in the failed queue",
+	[]string{},
+	nil,
+)
+
+var jobFailedMetric = prometheus.NewDesc(
+	prometheus.BuildFQName("resque", "", "job_failed"),
+	"Failed jobs",
+	[]string{
+		"job",
 	},
-		[]string{
-			"job",
-		})
-	log.Debugf("Created metric: resque_job_enqueued")
-	jobCompletedMetric := promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "resque_job_completed",
-		Help: "Completed jobs",
+	nil,
+)
+
+var jobEnqueuedMetric = prometheus.NewDesc(
+	prometheus.BuildFQName("resque", "", "job_enqueued"),
+	"Enqueued jobs",
+	[]string{
+		"job",
 	},
-		[]string{
-			"job",
-		})
-	log.Debugf("Created metric: resque_job_completed")
-	for {
-		log.Debugf("Starting getFailedQueueMetrics loop")
-		log.Debugf("Getting list of jobs")
-		jobList := getJobList(red, conf.redisNamespace)
+	nil,
+)
+
+var jobCompletedMetric = prometheus.NewDesc(
+	prometheus.BuildFQName("resque", "", "job_completed"),
+	"Completed jobs",
+	[]string{
+		"job",
+	},
+	nil,
+)
+
+func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
+	ch <- workersMetric
+	ch <- workingWorkersMetric
+	ch <- queuedJobsMetric
+	ch <- processedJobsMetric
+	ch <- failedJobsMetric
+	ch <- failedQueueMetric
+	ch <- jobFailedMetric
+	ch <- jobEnqueuedMetric
+	ch <- jobCompletedMetric
+}
+
+func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
+	ch <- prometheus.MustNewConstMetric(
+		workersMetric,
+		prometheus.GaugeValue,
+		getWorkersMetrics(e.red, e.conf),
+	)
+	ch <- prometheus.MustNewConstMetric(
+		workingWorkersMetric,
+		prometheus.GaugeValue,
+		getWorkingWorkersMetric(e.red, e.conf),
+	)
+	if keyExist(e.red, e.conf.redisNamespace, "queues") {
+		queuesList := getSetMembers(e.red, e.conf.redisNamespace, "queues")
+		for _, q := range queuesList {
+			ch <- prometheus.MustNewConstMetric(
+				queuedJobsMetric,
+				prometheus.GaugeValue,
+				getListLength(e.red, e.conf.redisNamespace, "queue:"+q),
+				q,
+			)
+		}
+	}
+	ch <- prometheus.MustNewConstMetric(
+		processedJobsMetric,
+		prometheus.CounterValue,
+		getKeyFloat(e.red, e.conf.redisNamespace, "stat:processed"),
+	)
+	ch <- prometheus.MustNewConstMetric(
+		failedJobsMetric,
+		prometheus.CounterValue,
+		getKeyFloat(e.red, e.conf.redisNamespace, "stat:failed"),
+	)
+	ch <- prometheus.MustNewConstMetric(
+		failedQueueMetric,
+		prometheus.GaugeValue,
+		getListLength(e.red, e.conf.redisNamespace, "failed"),
+	)
+	jobList := getJobList(e.red, e.conf.redisNamespace)
+	if e.conf.resqueStatsMetrics {
 		for _, j := range jobList {
 			var failed float64
 			var completed float64
-			if keyExist(red, conf.redisNamespace, "stats:jobs:"+j+":failed") {
-				failed = getKeyFloat(red, conf.redisNamespace, "stats:jobs:"+j+":failed")
+			if keyExist(e.red, e.conf.redisNamespace, "stats:jobs:"+j+":failed") {
+				failed = getKeyFloat(e.red, e.conf.redisNamespace, "stats:jobs:"+j+":failed")
 			} else {
 				failed = 0
 			}
-			if keyExist(red, conf.redisNamespace, "stats:jobs:"+j+":performed") {
-				completed = getKeyFloat(red, conf.redisNamespace, "stats:jobs:"+j+":performed")
+			if keyExist(e.red, e.conf.redisNamespace, "stats:jobs:"+j+":completed") {
+				completed = getKeyFloat(e.red, e.conf.redisNamespace, "stats:jobs:"+j+":completed")
 			} else {
 				completed = 0
 			}
-			jobFailedMetric.WithLabelValues(j).Set(failed)
-			jobEnqueuedMetric.WithLabelValues(j).Set(getKeyFloat(red, conf.redisNamespace, "stats:jobs:"+j+":enqueued"))
-			jobCompletedMetric.WithLabelValues(j).Set(completed)
+			ch <- prometheus.MustNewConstMetric(
+				jobFailedMetric,
+				prometheus.GaugeValue,
+				failed,
+				j,
+			)
+			ch <- prometheus.MustNewConstMetric(
+				jobCompletedMetric,
+				prometheus.GaugeValue,
+				completed,
+				j,
+			)
+			ch <- prometheus.MustNewConstMetric(
+				jobEnqueuedMetric,
+				prometheus.GaugeValue,
+				getKeyFloat(e.red, e.conf.redisNamespace, "stats:jobs:"+j+":enqueued"),
+				j,
+			)
 		}
-		log.Debugf("Sleeping 15 seconds")
-		time.Sleep(time.Second * 15)
 	}
 }
