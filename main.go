@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 )
@@ -31,14 +32,8 @@ func main() {
 	log.Debugf("Configuration: %+v", config)
 	red := newRedisClient(config)
 	log.Debugf("Created redis client: %+v", red)
-	go getWorkersMetrics(red, config)
-	go getQueuedJobsMetrics(red, config)
-	go getProcessedJobsMetrics(red, config)
-	go getFailedJobsMetrics(red, config)
-	go getFailedQueueMetrics(red, config)
-	if config.resqueStatsMetrics {
-		go getJobStatsMetrics(red, config)
-	}
+	exporter := NewExporter(red, config)
+	prometheus.MustRegister(exporter)
 	log.Debugf("Serving /metrics on port 9447")
 	http.Handle("/metrics", promhttp.Handler())
 	err := http.ListenAndServe(":9447", nil)
