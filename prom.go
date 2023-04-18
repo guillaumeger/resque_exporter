@@ -37,6 +37,25 @@ func getWorkersMetrics(red *redis.Client, conf config) float64 {
 	}
 }
 
+var schedulesMetric = prometheus.NewDesc(
+	prometheus.BuildFQName("resque", "", "schedules"),
+	"Number of scheduled jobs",
+	[]string{},
+	nil,
+)
+
+func getSchedulerMetrics(red *redis.Client, conf config) float64 {
+	if !keyExist(red, conf.redisNamespace, "schedules_changed") {
+		log.Warnf("Key %v does not exist in redis, skipping...", conf.redisNamespace+":schedules_changed")
+		return 0.0
+	} else {
+		schedulesList := getSetMembers(red, conf.redisNamespace, "schedules_changed")
+		schedules := float64(len(schedulesList))
+		log.Debugf("No of schedules: %v", schedules)
+		return schedules
+	}
+}
+
 var workingWorkersMetric = prometheus.NewDesc(
 	prometheus.BuildFQName("resque", "", "workers_working"),
 	"Number of workers currently working",
@@ -120,6 +139,7 @@ var jobCompletedMetric = prometheus.NewDesc(
 
 func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- workersMetric
+	ch <- schedulesMetric
 	ch <- workingWorkersMetric
 	ch <- queuedJobsMetric
 	ch <- processedJobsMetric
@@ -135,6 +155,11 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 		workersMetric,
 		prometheus.GaugeValue,
 		getWorkersMetrics(e.red, e.conf),
+	)
+	ch <- prometheus.MustNewConstMetric(
+		schedulesMetric,
+		prometheus.GaugeValue,
+		getSchedulerMetrics(e.red, e.conf),
 	)
 	ch <- prometheus.MustNewConstMetric(
 		workingWorkersMetric,
